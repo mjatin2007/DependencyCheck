@@ -17,6 +17,10 @@
  */
 package org.owasp.dependencycheck.data.cache;
 
+import org.apache.commons.jcs3.JCS;
+import org.apache.commons.jcs3.access.CacheAccess;
+import org.apache.commons.jcs3.engine.behavior.ICompositeCacheAttributes;
+import org.apache.commons.jcs3.engine.behavior.IElementAttributes;
 import org.junit.jupiter.api.Test;
 import org.owasp.dependencycheck.BaseTest;
 import org.owasp.dependencycheck.data.nexus.MavenArtifact;
@@ -26,6 +30,8 @@ import java.io.FilenameFilter;
 import java.io.IOException;
 import java.util.List;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -49,6 +55,30 @@ class DataCacheFactoryTest extends BaseTest {
 
         FilenameFilter filter = (File f1, String name) -> name.startsWith("CENTRAL");
         assertTrue(f.listFiles(filter).length > 0);
+    }
+
+    @Test
+    void testConfiguredAttributesForAllFactoryCaches() throws IOException {
+        DataCacheFactory instance = new DataCacheFactory(getSettings());
+        assertNotNull(instance.getNodeAuditCache());
+        assertNotNull(instance.getCentralCache());
+        assertNotNull(instance.getPomCache());
+
+        assertRegionAttributes("NODEAUDIT", 86400L);
+        assertRegionAttributes("CENTRAL", 2592000L);
+        assertRegionAttributes("POM", 7776000L);
+    }
+
+    private static void assertRegionAttributes(String region, long maxLife) throws IOException {
+        CacheAccess<Object, Object> cache = JCS.getInstance(region);
+        IElementAttributes elementAttributes = cache.getDefaultElementAttributes();
+        ICompositeCacheAttributes cacheAttributes = cache.getCacheAttributes();
+        assertFalse(elementAttributes.getIsEternal(), region + " should expire entries");
+        assertEquals(maxLife, elementAttributes.getMaxLife(), region + " MaxLife");
+        assertEquals(0, cacheAttributes.getMaxObjects(), region + " MaxObjects");
+        assertEquals(ICompositeCacheAttributes.DiskUsagePattern.UPDATE,
+                cacheAttributes.getDiskUsagePattern(), region + " disk usage pattern");
+        assertTrue(cacheAttributes.isUseDisk(), region + " should use disk");
     }
 
 }
